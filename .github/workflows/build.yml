@@ -24,7 +24,11 @@ jobs:
       - name: Download test model (Windows)
         if: startsWith(matrix.runs-on, 'windows')
         run: ./models/download-ggml-model.cmd base.en
-      - name: Download test model (Unix-like)
+      - name: Download test model (Linux)
+        if: startsWith(matrix.runs-on, 'ubuntu')
+        run: bash ./models/download-ggml-model.sh base.en
+      - name: Download test model (MacOS)
+        if: startsWith(matrix.runs-on, 'macos')
         run: bash ./models/download-ggml-model.sh base.en
       
       - name: Build Test
