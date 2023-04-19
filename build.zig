@@ -31,7 +31,7 @@ pub fn build(b: *std.Build) void {
         cflags,
     );
     ggml.linkLibC();
-    ggml.install();
+    b.installArtifact(ggml);
 
     buildExe(
         b,
