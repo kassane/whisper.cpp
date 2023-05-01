@@ -1,10 +1,12 @@
 # whisper.cpp
 
+![whisper.cpp](https://user-images.githubusercontent.com/1991296/235238348-05d0f6a4-da44-4900-a1de-d0707e75b763.jpeg)
+
 [![Actions Status](https://github.com/ggerganov/whisper.cpp/workflows/CI/badge.svg)](https://github.com/ggerganov/whisper.cpp/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![npm](https://img.shields.io/npm/v/whisper.cpp.svg)](https://www.npmjs.com/package/whisper.cpp/)
 
-Beta: [v1.3.0](https://github.com/ggerganov/whisper.cpp/releases/tag/v1.3.0) / Stable: [v1.2.1](https://github.com/ggerganov/whisper.cpp/releases/tag/v1.2.1) / [Roadmap | F.A.Q.](https://github.com/ggerganov/whisper.cpp/discussions/126)
+Beta: [v1.4.1](https://github.com/ggerganov/whisper.cpp/releases/tag/v1.4.1) / Stable: [v1.2.1](https://github.com/ggerganov/whisper.cpp/releases/tag/v1.2.1) / [Roadmap | F.A.Q.](https://github.com/ggerganov/whisper.cpp/discussions/126)
 
 High-performance inference of [OpenAI's Whisper](https://github.com/openai/whisper) automatic speech recognition (ASR) model:
 
@@ -13,9 +15,11 @@ High-performance inference of [OpenAI's Whisper](https://github.com/openai/whisp
 - AVX intrinsics support for x86 architectures
 - VSX intrinsics support for POWER architectures
 - Mixed F16 / F32 precision
+- [4-bit and 5-bit integer quantization support](https://github.com/ggerganov/whisper.cpp#quantization)
 - Low memory usage (Flash Attention)
 - Zero memory allocations at runtime
 - Runs on the CPU
+- [Partial GPU support for NVIDIA via cuBLAS](https://github.com/ggerganov/whisper.cpp#nvidia-gpu-support-via-cublas)
 - [C-style API](https://github.com/ggerganov/whisper.cpp/blob/master/whisper.h)
 
 Supported platforms:
@@ -225,6 +229,22 @@ make large
 | medium | 1.5 GB | ~1.7 GB | `fd9727b6e1217c2f614f9b698455c4ffd82463b4` |
 | large  | 2.9 GB | ~3.3 GB | `0f4c8e34f21cf1a914c59d8b3ce882345ad349d6` |
 
+## Quantization
+
+`whisper.cpp` supports integer quantization of the Whisper `ggml` models.
+Quantized models require less memory and disk space and depending on the hardware can be processed more efficiently.
+
+Here are the steps for creating and using a quantized model:
+
+```bash
+# quantize a model with Q5_0 method
+make quantize
+./quantize models/ggml-base.en.bin models/ggml-base.en-q5_0.bin q5_0
+
+# run the examples as usual, specifying the quantized model file
+./main -m models/ggml-base.en-q5_0.bin ./samples/gb0.wav
+```
+
 ## Core ML support
 
 On Apple Silicon devices, the Encoder inference can be executed on the Apple Neural Engine (ANE) via Core ML. This can result in significant
@@ -252,7 +272,7 @@ speed-up - more than x3 faster compared with CPU-only execution. Here are the in
   # using Makefile
   make clean
   WHISPER_COREML=1 make -j
-  
+
   # using CMake
   cd build
   cmake -DWHISPER_COREML=1 ..
@@ -269,20 +289,33 @@ speed-up - more than x3 faster compared with CPU-only execution. Here are the in
   whisper_init_state: first run on a device may take a while ...
   whisper_init_state: Core ML model loaded
 
-  system_info: n_threads = 4 / 10 | AVX = 0 | AVX2 = 0 | AVX512 = 0 | FMA = 0 | NEON = 1 | ARM_FMA = 1 | F16C = 0 | FP16_VA = 1 | WASM_SIMD = 0 | BLAS = 1 | SSE3 = 0 | VSX = 0 | COREML = 1 | 
+  system_info: n_threads = 4 / 10 | AVX = 0 | AVX2 = 0 | AVX512 = 0 | FMA = 0 | NEON = 1 | ARM_FMA = 1 | F16C = 0 | FP16_VA = 1 | WASM_SIMD = 0 | BLAS = 1 | SSE3 = 0 | VSX = 0 | COREML = 1 |
 
   ...
   ```
 
   The first run on a device is slow, since the ANE service compiles the Core ML model to some device-specific format.
   Next runs are faster.
-  
+
 For more information about the Core ML implementation please refer to PR [#566](https://github.com/ggerganov/whisper.cpp/pull/566).
-  
+
+## NVIDIA GPU support via cuBLAS
+
+With NVIDIA cards, the Encoder processing can be offloaded to the GPU to a large extend through cuBLAS.
+First, make sure you have installed `cuda`: https://developer.nvidia.com/cuda-downloads
+
+Now build `whisper.cpp` with cuBLAS support:
+
+```
+make clean
+WHISPER_CUBLAS=1 make -j
+```
+
+Run all the examples as usual.
+
 ## Limitations
 
 - Inference only
-- No GPU support (yet)
 
 ## Another example
 
@@ -427,7 +460,7 @@ system_info: n_threads = 4 / 10 | AVX2 = 0 | AVX512 = 0 | NEON = 1 | FP16_VA = 1
 
 main: processing './samples/jfk.wav' (176000 samples, 11.0 sec), 4 threads, 1 processors, lang = en, task = transcribe, timestamps = 1 ...
 
-[00:00:00.000 --> 00:00:00.320]  
+[00:00:00.000 --> 00:00:00.320]
 [00:00:00.320 --> 00:00:00.370]   And
 [00:00:00.370 --> 00:00:00.690]   so
 [00:00:00.690 --> 00:00:00.850]   my
