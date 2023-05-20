@@ -16,6 +16,8 @@ build-cublas/
 build-no-accel/
 build-sanitize-addr/
 build-sanitize-thread/
+zig-out/
+zig-cache/
 
 /main
 /stream
@@ -41,5 +43,6 @@ extra/bench-gg.txt
 models/*.mlmodel
 models/*.mlmodelc
 models/*.mlpackage
-
-zig-*/
+bindings/java/.gradle/
+bindings/java/.idea/
+.idea/
