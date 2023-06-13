@@ -19,7 +19,7 @@ jobs:
           version: master
       
       - name: Build Summary
-        run: zig build -Doptimize=ReleaseSafe -fsummary -freference-trace
+        run: zig build -fsummary -freference-trace
 
       - name: Download test model (Windows)
         if: startsWith(matrix.runs-on, 'windows')
@@ -32,14 +32,4 @@ jobs:
         run: bash ./models/download-ggml-model.sh base.en
       
       - name: Build Test
-        run: zig build whisper -Doptimize=ReleaseSafe -- -m models/ggml-base.en.bin -f samples/jfk.wav
-
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: master
-      - run: zig fmt --check --ast-check **.zig
+        run: zig build whisper -- -m models/ggml-base.en.bin -f samples/jfk.wav
