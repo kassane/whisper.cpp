@@ -36,10 +36,18 @@ CFLAGS   = -I.              -O3 -DNDEBUG -std=c11   -fPIC
 CXXFLAGS = -I. -I./examples -O3 -DNDEBUG -std=c++11 -fPIC
 LDFLAGS  =
 
-# ref: https://github.com/ggerganov/whisper.cpp/issues/37
-ifneq ($(wildcard /usr/include/musl/*),)
-	CFLAGS += -D_POSIX_SOURCE -D_GNU_SOURCE
-	CXXFLAGS += -D_POSIX_SOURCE -D_GNU_SOURCE
+# clock_gettime came in POSIX.1b (1993)
+# CLOCK_MONOTONIC came in POSIX.1-2001 / SUSv3 as optional
+# posix_memalign came in POSIX.1-2001 / SUSv3
+# M_PI is an XSI extension since POSIX.1-2001 / SUSv3, came in XPG1 (1985)
+CFLAGS   += -D_XOPEN_SOURCE=600
+CXXFLAGS += -D_XOPEN_SOURCE=600
+
+# RLIMIT_MEMLOCK came in BSD, is not specified in POSIX.1,
+# and on macOS its availability depends on enabling Darwin extensions
+ifeq ($(UNAME_S),Darwin)
+	CFLAGS   += -D_DARWIN_C_SOURCE
+	CXXFLAGS += -D_DARWIN_C_SOURCE
 endif
 
 # OS specific
@@ -160,12 +168,12 @@ ifdef WHISPER_OPENBLAS
 endif
 
 ifdef WHISPER_CUBLAS
-	CFLAGS      += -DGGML_USE_CUBLAS -I/usr/local/cuda/include -I/opt/cuda/include -I$(CUDA_PATH)/targets/x86_64-linux/include
-	CXXFLAGS    += -DGGML_USE_CUBLAS -I/usr/local/cuda/include -I/opt/cuda/include -I$(CUDA_PATH)/targets/x86_64-linux/include
-	LDFLAGS     += -lcublas -lculibos -lcudart -lcublasLt -lpthread -ldl -lrt -L/usr/local/cuda/lib64 -L/opt/cuda/lib64 -L$(CUDA_PATH)/targets/x86_64-linux/lib
+	CFLAGS      += -DGGML_USE_CUBLAS -I/usr/local/cuda/include -I/opt/cuda/include -I$(CUDA_PATH)/targets/$(UNAME_M)-linux/include
+	CXXFLAGS    += -DGGML_USE_CUBLAS -I/usr/local/cuda/include -I/opt/cuda/include -I$(CUDA_PATH)/targets/$(UNAME_M)-linux/include
+	LDFLAGS     += -lcublas -lculibos -lcudart -lcublasLt -lpthread -ldl -lrt -L/usr/local/cuda/lib64 -L/opt/cuda/lib64 -L$(CUDA_PATH)/targets/$(UNAME_M)-linux/lib
 	WHISPER_OBJ += ggml-cuda.o
 	NVCC        = nvcc
-	NVCCFLAGS   = --forward-unknown-to-host-compiler -arch=native
+	NVCCFLAGS   = --forward-unknown-to-host-compiler -arch=any
 
 ggml-cuda.o: ggml-cuda.cu ggml-cuda.h
 	$(NVCC) $(NVCCFLAGS) $(CXXFLAGS) -Wno-pedantic -c $< -o $@
@@ -175,8 +183,8 @@ ifdef WHISPER_CLBLAST
 	CFLAGS 		+= -DGGML_USE_CLBLAST
 	LDFLAGS	 	+= -lclblast -lOpenCL
 	WHISPER_OBJ	+= ggml-opencl.o
-	
-ggml-opencl.o: ggml-opencl.c ggml-opencl.h
+
+ggml-opencl.o: ggml-opencl.cpp ggml-opencl.h
 	$(CC) $(CFLAGS) -c $< -o $@
 endif
 

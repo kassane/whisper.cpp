@@ -1,5 +1,5 @@
 #include "whisper.h"
-#if WHISPER_USE_COREML
+#ifdef WHISPER_USE_COREML
 #include "coreml/whisper-encoder.h"
 #endif
 
@@ -18,6 +18,10 @@
 #include <vector>
 #include <regex>
 #include <random>
+
+#if defined(_MSC_VER)
+#pragma warning(disable: 4244 4267) // possible loss of data
+#endif
 
 #if defined(GGML_BIG_ENDIAN)
 #include <bit>
@@ -1468,7 +1472,7 @@ static bool whisper_encode_internal(
         {
             wstate.use_buf(ctx0, 1);
 
-            cur = ggml_conv_1d_1s(ctx0, model.e_conv_1_w, mel);
+            cur = ggml_conv_1d_s1_ph(ctx0, model.e_conv_1_w, mel);
             cur = ggml_add(ctx0,
                     ggml_repeat(ctx0,
                         model.e_conv_1_b,
@@ -1479,7 +1483,7 @@ static bool whisper_encode_internal(
 
             wstate.use_buf(ctx0, 0);
 
-            cur = ggml_conv_1d_2s(ctx0, model.e_conv_2_w, cur);
+            cur = ggml_conv_1d_s2_ph(ctx0, model.e_conv_2_w, cur);
             cur = ggml_add(ctx0,
                     ggml_repeat(ctx0,
                         model.e_conv_2_b,
@@ -3397,26 +3401,6 @@ static void whisper_exp_compute_token_level_timestamps(
                          float   thold_pt,
                          float   thold_ptsum);
 
-// trim from start (in place)
-static inline void ltrim(std::string &s) {
-    s.erase(s.begin(), std::find_if_not(s.begin(), s.end(), [](unsigned char ch) {
-        return std::isspace(ch);
-    }));
-}
-
-// trim from end (in place)
-static inline void rtrim(std::string &s) {
-    s.erase(std::find_if_not(s.rbegin(), s.rend(), [](unsigned char ch) {
-        return std::isspace(ch);
-    }).base(), s.end());
-}
-
-// trim from both ends (in place)
-static inline void trim(std::string &s) {
-    rtrim(s);
-    ltrim(s);
-}
-
 static inline bool should_split_on_word(const char * txt, bool split_on_word) {
     if (!split_on_word) return true;
 
@@ -3443,11 +3427,6 @@ static int whisper_wrap_segment(struct whisper_context & ctx, struct whisper_sta
         const int cur = strlen(txt);
 
         if (acc + cur > max_len && i > 0 && should_split_on_word(txt, split_on_word)) {
-            // split here
-            if (split_on_word) {
-                trim(text);
-            }
-
             state.result_all.back().text = std::move(text);
             state.result_all.back().t1 = token.t0;
             state.result_all.back().tokens.resize(i);
@@ -3475,9 +3454,6 @@ static int whisper_wrap_segment(struct whisper_context & ctx, struct whisper_sta
         }
     }
 
-    if (split_on_word) {
-        trim(text);
-    }
     state.result_all.back().text = std::move(text);
 
     return res;
