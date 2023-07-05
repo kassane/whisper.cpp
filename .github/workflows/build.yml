@@ -1,4 +1,4 @@
-name: zig-build
+name: Zig Build
 
 on: [push, pull_request]
 
@@ -19,7 +19,7 @@ jobs:
           version: master
       
       - name: Build Summary
-        run: zig build -fsummary -freference-trace
+        run: zig build --summary all -freference-trace
 
       - name: Download test model (Windows)
         if: startsWith(matrix.runs-on, 'windows')
