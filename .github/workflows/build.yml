@@ -2,6 +2,9 @@ name: Zig Build
 
 on: [push, pull_request]
 
+env:
+  ubuntu_image: "ubuntu:22.04"
+
 jobs:
   build:
     strategy:
