@@ -12,6 +12,12 @@ ifndef UNAME_M
 UNAME_M := $(shell uname -m)
 endif
 
+ifndef NVCC_VERSION
+	ifeq ($(call,$(shell which nvcc))$(.SHELLSTATUS),0)
+		NVCC_VERSION := $(shell nvcc --version | egrep -o "V[0-9]+.[0-9]+.[0-9]+" | cut -c2-)
+	endif
+endif
+
 CCV := $(shell $(CC) --version | head -n 1)
 CXXV := $(shell $(CXX) --version | head -n 1)
 
@@ -51,19 +57,7 @@ endif
 
 # OS specific
 # TODO: support Windows
-ifeq ($(UNAME_S),Linux)
-	CFLAGS   += -pthread
-	CXXFLAGS += -pthread
-endif
-ifeq ($(UNAME_S),Darwin)
-	CFLAGS   += -pthread
-	CXXFLAGS += -pthread
-endif
-ifeq ($(UNAME_S),FreeBSD)
-	CFLAGS   += -pthread
-	CXXFLAGS += -pthread
-endif
-ifeq ($(UNAME_S),Haiku)
+ifeq ($(filter $(UNAME_S),Linux Darwin DragonFly FreeBSD NetBSD OpenBSD Haiku),$(UNAME_S))
 	CFLAGS   += -pthread
 	CXXFLAGS += -pthread
 endif
@@ -73,60 +67,50 @@ endif
 #       feel free to update the Makefile for your architecture and send a pull request or issue
 ifeq ($(UNAME_M),$(filter $(UNAME_M),x86_64 i686))
 	ifeq ($(UNAME_S),Darwin)
-		CFLAGS += -mf16c
-		AVX1_M := $(shell sysctl machdep.cpu.features)
-		ifneq (,$(findstring FMA,$(AVX1_M)))
-			CFLAGS += -mfma
-		endif
-		ifneq (,$(findstring AVX1.0,$(AVX1_M)))
+		CPUINFO_CMD := sysctl machdep.cpu.features
+	else ifeq ($(UNAME_S),Linux)
+		CPUINFO_CMD := cat /proc/cpuinfo
+	else ifneq (,$(filter MINGW32_NT% MINGW64_NT%,$(UNAME_S)))
+		CPUINFO_CMD := cat /proc/cpuinfo
+	else ifeq ($(UNAME_S),Haiku)
+		CPUINFO_CMD := sysinfo -cpu
+	endif
+
+	ifdef CPUINFO_CMD  	
+    AVX_M := $(shell $(CPUINFO_CMD) | grep -m 1 "avx ")
+		ifneq (,$(findstring avx,$(AVX_M)))
 			CFLAGS += -mavx
 		endif
-		AVX2_M := $(shell sysctl machdep.cpu.leaf7_features)
-		ifneq (,$(findstring AVX2,$(AVX2_M)))
-			CFLAGS += -mavx2
-		endif
-	else ifeq ($(UNAME_S),Linux)
-		AVX2_M := $(shell grep "avx2 " /proc/cpuinfo)
+    
+		AVX2_M := $(shell $(CPUINFO_CMD) | grep -m 1 "avx2 ")
 		ifneq (,$(findstring avx2,$(AVX2_M)))
 			CFLAGS += -mavx2
 		endif
-		FMA_M := $(shell grep "fma " /proc/cpuinfo)
+
+		FMA_M := $(shell $(CPUINFO_CMD) | grep -m 1 "fma ")
 		ifneq (,$(findstring fma,$(FMA_M)))
 			CFLAGS += -mfma
 		endif
-		F16C_M := $(shell grep "f16c " /proc/cpuinfo)
+
+		F16C_M := $(shell $(CPUINFO_CMD) | grep -m 1 "f16c ")
 		ifneq (,$(findstring f16c,$(F16C_M)))
 			CFLAGS += -mf16c
 
-			AVX1_M := $(shell grep "avx " /proc/cpuinfo)
+			AVX1_M := $(shell $(CPUINFO_CMD) | grep -m 1 "avx ")
 			ifneq (,$(findstring avx,$(AVX1_M)))
 				CFLAGS += -mavx
 			endif
 		endif
-		SSE3_M := $(shell grep "sse3 " /proc/cpuinfo)
+
+		SSE3_M := $(shell $(CPUINFO_CMD) | grep -m 1 "sse3 ")
 		ifneq (,$(findstring sse3,$(SSE3_M)))
 			CFLAGS += -msse3
 		endif
-	else ifeq ($(UNAME_S),Haiku)
-		AVX2_M := $(shell sysinfo -cpu | grep "AVX2 ")
-		ifneq (,$(findstring avx2,$(AVX2_M)))
-			CFLAGS += -mavx2
-		endif
-		FMA_M := $(shell sysinfo -cpu | grep "FMA ")
-		ifneq (,$(findstring fma,$(FMA_M)))
-			CFLAGS += -mfma
-		endif
-		F16C_M := $(shell sysinfo -cpu | grep "F16C ")
-		ifneq (,$(findstring f16c,$(F16C_M)))
-			CFLAGS += -mf16c
 
-			AVX1_M := $(shell sysinfo -cpu | grep "AVX ")
-			ifneq (,$(findstring avx,$(AVX1_M)))
-				CFLAGS += -mavx
-			endif
+		SSSE3_M := $(shell $(CPUINFO_CMD) | grep -m 1 "ssse3 ")
+		ifneq (,$(findstring ssse3,$(SSSE3_M)))
+			CFLAGS += -mssse3
 		endif
-	else
-		CFLAGS += -mfma -mf16c -mavx -mavx2
 	endif
 endif
 ifeq ($(UNAME_M),amd64)
@@ -162,29 +146,56 @@ endif
 endif
 
 ifdef WHISPER_OPENBLAS
-	CFLAGS  += -DGGML_USE_OPENBLAS -I/usr/local/include/openblas
+	CFLAGS  += -DGGML_USE_OPENBLAS -I/usr/local/include/openblas -I/usr/include/openblas
 	LDFLAGS += -lopenblas
 endif
 
 ifdef WHISPER_CUBLAS
+	ifeq ($(shell expr $(NVCC_VERSION) \>= 11.6), 1)
+		CUDA_ARCH_FLAG=native
+	else
+		CUDA_ARCH_FLAG=all
+	endif
+
 	CFLAGS      += -DGGML_USE_CUBLAS -I/usr/local/cuda/include -I/opt/cuda/include -I$(CUDA_PATH)/targets/$(UNAME_M)-linux/include
 	CXXFLAGS    += -DGGML_USE_CUBLAS -I/usr/local/cuda/include -I/opt/cuda/include -I$(CUDA_PATH)/targets/$(UNAME_M)-linux/include
 	LDFLAGS     += -lcublas -lculibos -lcudart -lcublasLt -lpthread -ldl -lrt -L/usr/local/cuda/lib64 -L/opt/cuda/lib64 -L$(CUDA_PATH)/targets/$(UNAME_M)-linux/lib
 	WHISPER_OBJ += ggml-cuda.o
 	NVCC        = nvcc
-	NVCCFLAGS   = --forward-unknown-to-host-compiler -arch=any
+	NVCCFLAGS   = --forward-unknown-to-host-compiler -arch=$(CUDA_ARCH_FLAG)
 
 ggml-cuda.o: ggml-cuda.cu ggml-cuda.h
 	$(NVCC) $(NVCCFLAGS) $(CXXFLAGS) -Wno-pedantic -c $< -o $@
 endif
 
+ifdef WHISPER_HIPBLAS
+	ROCM_PATH   ?= /opt/rocm
+	HIPCC       ?= $(ROCM_PATH)/bin/hipcc
+	GPU_TARGETS ?= $(shell $(ROCM_PATH)/llvm/bin/amdgpu-arch)
+	CFLAGS      += -DGGML_USE_HIPBLAS -DGGML_USE_CUBLAS
+	CXXFLAGS    += -DGGML_USE_HIPBLAS -DGGML_USE_CUBLAS
+	LDFLAGS     += -L$(ROCM_PATH)/lib -Wl,-rpath=$(ROCM_PATH)/lib
+	LDFLAGS     += -lhipblas -lamdhip64 -lrocblas
+	HIPFLAGS    += $(addprefix --offload-arch=,$(GPU_TARGETS))
+	WHISPER_OBJ += ggml-cuda.o
+
+ggml-cuda.o: ggml-cuda.cu ggml-cuda.h
+	$(HIPCC) $(CXXFLAGS) $(HIPFLAGS) -x hip -c -o $@ $<
+endif
+
 ifdef WHISPER_CLBLAST
 	CFLAGS 		+= -DGGML_USE_CLBLAST
-	LDFLAGS	 	+= -lclblast -lOpenCL
+	CXXFLAGS 	+= -DGGML_USE_CLBLAST
+	LDFLAGS	 	+= -lclblast
+	ifeq ($(UNAME_S),Darwin)
+		LDFLAGS	 	+= -framework OpenCL
+	else
+		LDFLAGS	    += -lOpenCL
+	endif
 	WHISPER_OBJ	+= ggml-opencl.o
 
 ggml-opencl.o: ggml-opencl.cpp ggml-opencl.h
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 endif
 
 ifdef WHISPER_GPROF
@@ -262,7 +273,7 @@ libwhisper.so: ggml.o $(WHISPER_OBJ)
 	$(CXX) $(CXXFLAGS) -shared -o libwhisper.so ggml.o $(WHISPER_OBJ) $(LDFLAGS)
 
 clean:
-	rm -f *.o main stream command talk talk-llama bench quantize libwhisper.a libwhisper.so
+	rm -f *.o main stream command talk talk-llama bench quantize lsp libwhisper.a libwhisper.so
 
 #
 # Examples
@@ -289,6 +300,9 @@ stream: examples/stream/stream.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) ggml.o $(WHIS
 command: examples/command/command.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) ggml.o $(WHISPER_OBJ)
 	$(CXX) $(CXXFLAGS) examples/command/command.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) ggml.o $(WHISPER_OBJ) -o command $(CC_SDL) $(LDFLAGS)
 
+lsp: examples/lsp/lsp.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) ggml.o $(WHISPER_OBJ)
+	$(CXX) $(CXXFLAGS) examples/lsp/lsp.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) ggml.o $(WHISPER_OBJ) -o lsp $(CC_SDL) $(LDFLAGS)
+
 talk: examples/talk/talk.cpp examples/talk/gpt-2.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) ggml.o $(WHISPER_OBJ)
 	$(CXX) $(CXXFLAGS) examples/talk/talk.cpp examples/talk/gpt-2.cpp $(SRC_COMMON) $(SRC_COMMON_SDL) ggml.o $(WHISPER_OBJ) -o talk $(CC_SDL) $(LDFLAGS)
 
@@ -309,6 +323,7 @@ samples:
 	@wget --quiet --show-progress -O samples/hp0.ogg https://upload.wikimedia.org/wikipedia/en/d/d4/En.henryfphillips.ogg
 	@wget --quiet --show-progress -O samples/mm1.wav https://cdn.openai.com/whisper/draft-20220913a/micro-machines.wav
 	@wget --quiet --show-progress -O samples/a13.mp3 https://upload.wikimedia.org/wikipedia/commons/transcoded/6/6f/Apollo13-wehaveaproblem.ogg/Apollo13-wehaveaproblem.ogg.mp3
+	@wget --quiet --show-progress -O samples/diffusion2023-07-03.flac https://archive.org/download/diffusion2023-07-03/diffusion2023-07-03.flac
 	@echo "Converting to 16-bit WAV ..."
 	@ffmpeg -loglevel -0 -y -i samples/gb0.ogg -ar 16000 -ac 1 -c:a pcm_s16le samples/gb0.wav
 	@ffmpeg -loglevel -0 -y -i samples/gb1.ogg -ar 16000 -ac 1 -c:a pcm_s16le samples/gb1.wav
@@ -318,6 +333,8 @@ samples:
 	@rm samples/mm1.wav
 	@ffmpeg -loglevel -0 -y -i samples/a13.mp3 -ar 16000 -ac 1 -c:a pcm_s16le -ss 00:00:00 -to 00:00:30 samples/a13.wav
 	@rm samples/a13.mp3
+	@ffmpeg -loglevel -0 -y -i samples/diffusion2023-07-03.flac -ar 16000 -ac 1 -c:a pcm_s16le samples/diffusion2023-07-03.wav
+	@rm samples/diffusion2023-07-03.flac
 
 #
 # Models
@@ -359,4 +376,4 @@ tiny.en tiny base.en base small.en small medium.en medium large-v1 large: main
 
 .PHONY: tests
 tests:
-	bash ./tests/run-tests.sh
+	bash ./tests/run-tests.sh $(word 2, $(MAKECMDGOALS))
