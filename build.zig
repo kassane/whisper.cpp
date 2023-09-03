@@ -1,21 +1,10 @@
 const std = @import("std");
 
-// Although this function looks imperative, note that its job is to
-// declaratively construct a build graph that will be executed by an external
-// runner.
 pub fn build(b: *std.Build) void {
     if (comptime !checkVersion())
         @compileError("Please! Update zig toolchain!");
 
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{});
-
-    // Standard optimization options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
-    // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
     const ggml = b.addStaticLibrary(.{
@@ -25,11 +14,8 @@ pub fn build(b: *std.Build) void {
     });
     if (optimize == .ReleaseSafe)
         ggml.bundle_compiler_rt = true;
-    ggml.addIncludePath(".");
-    ggml.addCSourceFile(
-        "ggml.c",
-        cflags,
-    );
+    ggml.addIncludePath(.{ .path = "." });
+    ggml.addCSourceFile(.{ .file = .{ .path = "ggml.c" }, .flags = cflags });
     ggml.linkLibC();
     b.installArtifact(ggml);
 
@@ -59,8 +45,8 @@ fn buildExe(b: *std.Build, ggml: *std.Build.CompileStep, binfo: BuildInfo) void 
         exe.want_lto = false;
     if (exe.target.isDarwin())
         exe.linkFramework("accelerate");
-    exe.addIncludePath(".");
-    exe.addIncludePath("examples");
+    exe.addIncludePath(.{ .path = "." });
+    exe.addIncludePath(.{ .path = "examples" });
     exe.linkLibrary(ggml);
     exe.addCSourceFiles(
         binfo.files,
@@ -68,7 +54,10 @@ fn buildExe(b: *std.Build, ggml: *std.Build.CompileStep, binfo: BuildInfo) void 
     );
 
     // static-linking to llvm-libcxx
-    exe.linkLibCpp();
+    if (exe.target.getAbi() != .msvc)
+        exe.linkLibCpp()
+    else
+        exe.linkLibC();
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
@@ -124,7 +113,7 @@ fn checkVersion() bool {
         return false;
     }
 
-    const needed_version = std.SemanticVersion.parse("0.11.0-dev.2191") catch unreachable;
+    const needed_version = std.SemanticVersion.parse("0.11.0") catch unreachable;
     const version = builtin.zig_version;
     const order = version.order(needed_version);
     return order != .lt;
