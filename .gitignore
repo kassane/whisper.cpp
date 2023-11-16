@@ -8,9 +8,11 @@
 .DS_Store
 
 build/
+build-coreml/
 build-em/
 build-debug/
 build-release/
+build-rwdi/
 build-static/
 build-cublas/
 build-no-accel/
@@ -18,6 +20,11 @@ build-sanitize-addr/
 build-sanitize-thread/
 zig-out/
 zig-cache/
+
+# SPM
+.build/
+.swiftpm
+*.metallib
 
 /main
 /stream
@@ -47,3 +54,9 @@ models/*.mlpackage
 bindings/java/.gradle/
 bindings/java/.idea/
 .idea/
+
+benchmark_results.csv
+cmake-build-debug/
+.cxx/
+.gradle/
+local.properties
