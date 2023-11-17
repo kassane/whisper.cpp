@@ -14,8 +14,17 @@ pub fn build(b: *std.Build) void {
     });
     if (optimize == .ReleaseSafe)
         ggml.bundle_compiler_rt = true;
+    if (target.getAbi() != .msvc)
+        ggml.defineCMacro("_GNU_SOURCE", null);
     ggml.addIncludePath(.{ .path = "." });
-    ggml.addCSourceFile(.{ .file = .{ .path = "ggml.c" }, .flags = cflags });
+    ggml.addCSourceFiles(&.{
+        "ggml.c",
+        "ggml-backend.c",
+        "ggml-quants.c",
+        "ggml-alloc.c",
+    }, cflags);
+    if (target.isDarwin())
+        ggml.linkFramework("accelerate");
     ggml.linkLibC();
     b.installArtifact(ggml);
 
