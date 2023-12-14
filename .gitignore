@@ -33,6 +33,7 @@ zig-cache/
 /talk-llama
 /bench
 /quantize
+/server
 /lsp
 
 arm_neon.h
