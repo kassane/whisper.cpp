@@ -1165,6 +1165,11 @@ extern "C" {
             struct ggml_tensor  * a,
             struct ggml_tensor  * b);
 
+    GGML_API struct ggml_tensor * ggml_cast(
+            struct ggml_context * ctx,
+            struct ggml_tensor  * a,
+            enum   ggml_type      type);
+
     // make contiguous
     GGML_API struct ggml_tensor * ggml_cont(
             struct ggml_context * ctx,
@@ -1842,8 +1847,8 @@ extern "C" {
 
     // ggml_graph_plan() has to be called before ggml_graph_compute()
     // when plan.work_size > 0, caller must allocate memory for plan.work_data
-    GGML_API struct ggml_cplan ggml_graph_plan   (struct ggml_cgraph * cgraph, int n_threads /*= GGML_DEFAULT_N_THREADS*/);
-    GGML_API int               ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cplan * cplan);
+    GGML_API struct ggml_cplan ggml_graph_plan   (const struct ggml_cgraph * cgraph, int n_threads /*= GGML_DEFAULT_N_THREADS*/);
+    GGML_API int               ggml_graph_compute(      struct ggml_cgraph * cgraph, struct ggml_cplan * cplan);
 
     // same as ggml_graph_compute() but the work data is allocated as a part of the context
     // note: the drawback of this API is that you must have ensured that the context has enough memory for the work data
@@ -2062,10 +2067,19 @@ extern "C" {
     GGML_API size_t ggml_quantize_q4_K(const float * src, void * dst, int n, int k, int64_t * hist);
     GGML_API size_t ggml_quantize_q5_K(const float * src, void * dst, int n, int k, int64_t * hist);
     GGML_API size_t ggml_quantize_q6_K(const float * src, void * dst, int n, int k, int64_t * hist);
-    GGML_API size_t ggml_quantize_iq2_xxs(const float * src, void * dst, int n, int k, int64_t * hist);
-    GGML_API size_t ggml_quantize_iq2_xs (const float * src, void * dst, int n, int k, int64_t * hist);
 
-    GGML_API size_t ggml_quantize_chunk(enum ggml_type type, const float * src, void * dst, int start, int n, int64_t * hist);
+    GGML_API size_t ggml_quantize_chunk(enum ggml_type type, const float * src, void * dst,
+            int start, int nrows, int n_per_row, int64_t * hist, const float * imatrix);
+
+    // These are needed for IQ2_XS and IQ2_XXS quantizations
+    GGML_API void ggml_init_iq2_quantization(enum ggml_type type);
+    GGML_API void ggml_deinit_iq2_quantization(enum ggml_type type);
+
+    //
+    // Importance matrix
+    //
+    typedef void(*ggml_collect_imatrix_t)(const struct ggml_tensor * src0, const struct ggml_tensor * src1);
+    GGML_API void ggml_set_imatrix_collection(ggml_collect_imatrix_t imatrix_collect);
 
     //
     // gguf
